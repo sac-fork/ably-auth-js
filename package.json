@@ -1,0 +1,25 @@
+{
+  "name": "ably-auth",
+  "version": "1.0.0",
+  "description": "Repo for testing ably server-client auth via ably-js",
+  "main": "client.js",
+  "dependencies": {
+    "ably": "1.2.21",
+    "cors": "^2.8.5",
+    "express": "^4.18.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sac-fork/ably-auth-js.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sac-fork/ably-auth-js/issues"
+  },
+  "homepage": "https://github.com/sac-fork/ably-auth-js#readme"
+}
