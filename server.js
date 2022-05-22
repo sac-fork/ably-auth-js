@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 
 const API_KEY = 'appid.keyid:keysecret'; // Replace this with your API key
-const ably = new Ably.Realtime(API_KEY);
+const ablyRest = new Ably.Realtime(API_KEY);
 
 const app = express();
 
@@ -17,7 +17,10 @@ app.get("/ping", (_req, res) => {
 
 // auth method for accepting active channel, channel names and current token, returns token
 app.post("/ably/auth", (req, res) => {
-
+  ablyRest.auth.createTokenRequest(function(err, tokenRequest) {
+    // now send the tokenRequest back to the client, which will
+    // use it to request a token and connect to Ably
+  });
 });
 
 const port = process.env.PORT || 5000;
