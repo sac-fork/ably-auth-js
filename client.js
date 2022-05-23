@@ -10,6 +10,16 @@ const ably = new Ably.Realtime(); // provide authUrl or authCallBack for receivi
 //   console.log('Ably client received a message: ' + message.name + ', data: ' + JSON.stringify(message.data));
 // });
 
+ably.auth.requestToken(function(err, tokenDetails) {
+  // tokenDetails is instance of TokenDetails
+  // see https://www.ably.com/docs/rest/authentication/#token-details for its properties
+
+  // Now we have the token, we can send it to someone who can instantiate a client with it:
+  console.error(err);
+  console.log(tokenDetails)
+  // var clientUsingToken = new Ably.Realtime(tokenDetails.token);
+})
+
 const main = async() => {
   try {
   const token = await ably.auth.requestToken();
