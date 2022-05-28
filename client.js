@@ -15,8 +15,11 @@ const ablyClient = new Ably.Realtime({
 });
 
 // listen to all events on connection
-ablyClient.connection.on((eventName, error)=> {
-  console.log("Connection event :: ", eventName, " error :: ", error);
+ablyClient.connection.on((stateChange, error)=> {
+  console.log("Connection event :: ", stateChange, " error :: ", error);
+  if (stateChange.current == 'disconnected' && stateChange.reason?.code == 40142) { // key/token status expired
+    console.log("Connection token expired https://help.ably.io/error/40142");
+  }
 });
 
 const ablyChannel = ablyClient.channels.get("channel1");
@@ -25,12 +28,16 @@ ablyChannel.subscribe(function(message) {
 }); 
 ablyChannel.on((eventName, error)=> {
   console.log("channel1 event :: ", eventName, " error :: ", error);
+  const stateChange = eventName;
+  if (stateChange.current == 'failed' && stateChange.reason?.code == 40160) {
+    console.log("Channel denied access based on given capability https://help.ably.io/error/40160");
+  }
 });
 
 setTimeout(() => {
   console.log("Explicitly authorizing with capability");
-  ablyClient.auth.authorize({ttl: 19000, capability: '{"*":["*"]}'});
-}, 2000);
+  ablyClient.auth.authorize({ttl: 2000, capability: '{"channel":["*"]}'});
+}, 4000);
 
 // ably.auth.requestToken({clientId: '1234', ttl: 10000}, function(err, tokenDetails) {
 //   // tokenDetails is instance of TokenDetails
