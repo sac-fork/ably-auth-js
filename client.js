@@ -1,10 +1,10 @@
 const Ably = require("ably");
-
+const { beforeChannelAttach} = require('./utils');
 // Creating a client with token based auth, way to renew token using API_KEY
 const ablyClient = new Ably.Realtime({
-  defaultTokenParams: {ttl: 20000, capability: '{"*":["*"]}'},
+  defaultTokenParams: { ttl: 2000000, capability: '{"*":["*"]}' },
   queryTime: true,
-  useTokenAuth : true,
+  useTokenAuth: true,
   key: '',
   // log: {
   //   "level": 3, // debug
@@ -15,18 +15,28 @@ const ablyClient = new Ably.Realtime({
 });
 
 // listen to all events on connection
-ablyClient.connection.on((stateChange, error)=> {
+ablyClient.connection.on((stateChange, error) => {
   console.log("Connection event :: ", stateChange, " error :: ", error);
   if (stateChange.current == 'disconnected' && stateChange.reason?.code == 40142) { // key/token status expired
     console.log("Connection token expired https://help.ably.io/error/40142");
   }
 });
 
+beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
+        if (realtimeChannel.name.startsWith("public:")) {
+          errorCallback(null)
+        }
+        // Write custom logic here
+        console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`)
+        //
+});
+
 const ablyChannel = ablyClient.channels.get("channel1");
-ablyChannel.subscribe(function(message) {
+ablyChannel.subscribe(function (message) {
   console.log('channel1 message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
-}); 
-ablyChannel.on((eventName, error)=> {
+});
+
+ablyChannel.on((eventName, error) => {
   console.log("channel1 event :: ", eventName, " error :: ", error);
   const stateChange = eventName;
   if (stateChange.current == 'failed' && stateChange.reason?.code == 40160) {
@@ -34,10 +44,10 @@ ablyChannel.on((eventName, error)=> {
   }
 });
 
-setTimeout(() => {
-  console.log("Explicitly authorizing with capability");
-  ablyClient.auth.authorize({ttl: 2000, capability: '{"channel":["*"]}'});
-}, 4000);
+// setTimeout(() => {
+//   console.log("Explicitly authorizing with capability");
+//   ablyClient.auth.authorize({ ttl: 2000, capability: '{"channel":["*"]}' });
+// }, 4000);
 
 // ably.auth.requestToken({clientId: '1234', ttl: 10000}, function(err, tokenDetails) {
 //   // tokenDetails is instance of TokenDetails
