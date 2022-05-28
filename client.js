@@ -1,11 +1,19 @@
 const Ably = require("ably");
-const { beforeChannelAttach} = require('./utils');
-// Creating a client with token based auth, way to renew token using API_KEY
+const { beforeChannelAttach } = require('./auth-utils');
+const { getSignedToken } = require("./mock-auth-server");
+
+// Creating a client with token based auth using authCallback
 const ablyClient = new Ably.Realtime({
-  defaultTokenParams: { ttl: 2000000, capability: '{"*":["*"]}' },
   queryTime: true,
   useTokenAuth: true,
-  key: '',
+  authCallback: async (tokenParams, callback) => {
+    try {
+      const token = await getSignedToken(); // Replace this by network request to PHP server
+      callback(null, token);
+    } catch (error) {
+      callback(error, null);
+    }
+  }
   // log: {
   //   "level": 3, // debug
   //   "handler": (msg)=> {
@@ -23,12 +31,13 @@ ablyClient.connection.on((stateChange, error) => {
 });
 
 beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
-        if (realtimeChannel.name.startsWith("public:")) {
-          errorCallback(null)
-        }
-        // Write custom logic here
-        console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`)
-        //
+  if (realtimeChannel.name.startsWith("public:")) {
+    errorCallback(null)
+  }
+  // Write custom logic here
+  console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`)
+  errorCallback(null)
+  //
 });
 
 const ablyChannel = ablyClient.channels.get("channel1");
