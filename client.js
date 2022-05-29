@@ -51,6 +51,7 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
   if (token) {
     const tokenHasChannelCapability = token.capability.includes(channelName);
     if (tokenHasChannelCapability && token.expires >= Date.now()) { // TODO : Replace with server time
+      console.log('LOGGER :: SKIPPING TOKEN CHANNEL AUTH')
       errorCallback(null)
     }
   }
@@ -68,6 +69,7 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
     });
   })
 });
+
 
 const ablyChannel = ablyClient.channels.get("channel1");
 ablyChannel.subscribe(function (message) {
