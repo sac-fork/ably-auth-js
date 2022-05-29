@@ -76,4 +76,4 @@ const hasAccessToClaim = (ChannelName) => {
 }
 
 module.exports = { isNullOrUndefined, beforeChannelAttach, isNullOrUndefinedOrEmpty,
-     isTokenExpired, hasAccessToClaim, signJWT, hash }
+     isTokenExpired, hasAccessToClaim, signJWT, hash, parseJwt }

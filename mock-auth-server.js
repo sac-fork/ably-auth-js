@@ -1,4 +1,4 @@
-const { isNullOrUndefinedOrEmpty } = require("./auth-utils");
+const { isNullOrUndefinedOrEmpty, parseJwt} = require("./auth-utils");
 const Ably = require("ably/promises");
 const jwt = require("jsonwebtoken");
 
@@ -21,11 +21,12 @@ const getSignedToken = async (channelName = null, token = null) => {
     }
     let channelClaims = new Set(['"public:*":["*"]']);
     let iat = 0;
-    let expired = 0;
+    let exp = 0;
     if (!isNullOrUndefinedOrEmpty(token) && !tokenInvalidOrExpired(token)) {
-        // get existing claims from the token
-        // set iat from the token
-        // set expiry from exisiting token 
+        parsedJwt = parseJwt(token);
+        iat = parsedJwt.iat;
+        exp = parsedJwt.exp;
+        channelClaims = new Set(parsedJwt['x-ably-capability'].slice(1, -1).split(','));
     }
     if (iat == 0) {
         const time = await ablyClient.time();
@@ -33,7 +34,7 @@ const getSignedToken = async (channelName = null, token = null) => {
         exp = iat + 3600; /* time of expiration in seconds */
     }
     if (!isNullOrUndefinedOrEmpty(channelName)) {
-        channelClaims.add(`{"${channelName}":["*"]}`)
+        channelClaims.add(`"${channelName}":["*"]`)
     }
     const capabilities = Array.from(channelClaims).join(',');
     const claims = {

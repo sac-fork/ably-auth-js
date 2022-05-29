@@ -6,10 +6,11 @@ const { getSignedToken } = require("./mock-auth-server");
 const ablyClient = new Ably.Realtime({
   queryTime: true,
   useTokenAuth: true,
-  authCallback: async (tokenParams, callback) => {
+  authCallback: async ({token}, callback) => { // get token from tokenParams
     try {
-      const token = await getSignedToken(); // Replace this by network request to PHP server
-      callback(null, token);
+      token = token || ablyClient.auth.tokenDetails?.token; // if tokenParam is null, get saved token
+      const jwtToken = await getSignedToken(null, token); // Replace this by network request to PHP server
+      callback(null, jwtToken);
     } catch (error) {
       callback(error, null);
     }
@@ -37,14 +38,16 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
 
   console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`);
   // explicitly request token for given channel name
-  const token = await getSignedToken(realtimeChannel.name, realtimeChannel.auth.token);
-  ablyClient.auth.authorize({token}, (err, tokenDetails) => {
-    if (err) {
-      errorCallback(err);
-    } else {
-      errorCallback(null)
-    }
-  });
+  const token = ablyClient.auth.tokenParams?.token || ablyClient.auth.tokenDetails?.token; // always send latest token
+  getSignedToken(realtimeChannel.name, token).then(token => { // replace this by network server call
+    ablyClient.auth.authorize({token}, (err, tokenDetails) => {
+      if (err) {
+        errorCallback(err);
+      } else {
+        errorCallback(null)
+      }
+    });
+  })
 });
 
 const ablyChannel = ablyClient.channels.get("channel1");
@@ -56,7 +59,7 @@ ablyChannel.on((eventName, error) => {
   console.log("channel1 event :: ", eventName, " error :: ", error);
   const stateChange = eventName;
   if (stateChange.current == 'failed' && stateChange.reason?.code == 40160) {
-    console.log("Channel denied access based on given capability https://help.ably.io/error/40160");
+    console.error("Channel denied access based on given capability https://help.ably.io/error/40160");
   }
 });
 
