@@ -36,9 +36,6 @@ ablyClient.connection.on((stateChange, error) => {
   if (stateChange.current == 'disconnected' && stateChange.reason?.code == 40142) { // key/token status expired
     console.log("LOGGER:: Connection token expired https://help.ably.io/error/40142");
   }
-  if (stateChange.current == 'connected') {
-    console.log(stateChange, ablyClient.auth.tokenDetails);
-  }
 });
 
 
@@ -49,11 +46,11 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
     errorCallback(null)
   }
 
-  // Use cached token if has channel capability and is valid
+  // Use cached token if has channel capability and is not expired
   const token = ablyClient.auth.tokenDetails;
   if (token) {
     const tokenHasChannelCapability = token.capability.includes(channelName);
-    if (tokenHasChannelCapability && ablyClient.auth.isTimeOffsetSet() && token.expires >= ablyClient.auth.getTimestampUsingOffset()) {
+    if (tokenHasChannelCapability && token.expires >= Date.now()) { // TODO : Replace with server time
       errorCallback(null)
     }
   }
@@ -81,7 +78,24 @@ ablyChannel.on((eventName, error) => {
   console.log("LOGGER :: event :: ", eventName, " error :: ", error);
   const stateChange = eventName;
   if (stateChange.current == 'failed' && stateChange.reason?.code == 40160) {
-    console.error("Channel denied access based on given capability https://help.ably.io/error/40160");
+    console.error("LOGGER :: Channel denied access based on given capability https://help.ably.io/error/40160");
+    console.log("LOGGER :: Forced requesting new token for channel");
+    const channelName = ablyChannel.name;
+    getSignedToken(channelName, catcheToken).then(jwtToken => { // get upgraded token with channel access
+      catcheToken = jwtToken;
+      ablyClient.auth.authorize(null, {...authOptions, token: toTokenDetails(jwtToken)}, (err, tokenDetails) => {
+        if (err) {
+          console.error("LOGGER :: Error authorizing channel token", err);
+        } else {
+          console.log('LOGGER :: attaching channel after getting token');
+          ablyChannel.attach(err=> {
+            if (err) {
+            console.error("Error with attaching the channel", err);
+            }
+          })
+        }
+      });
+    });
   }
 });
 
