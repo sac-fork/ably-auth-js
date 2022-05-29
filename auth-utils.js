@@ -31,12 +31,12 @@ const parseJwt = (token) => {
         // Get Token Header
         const base64HeaderUrl = token.split('.')[0];
         const base64Header = base64HeaderUrl.replace('-', '+').replace('_', '/');
-        const headerData = JSON.parse(window.atob(base64Header));
+        const headerData = JSON.parse(atob(base64Header));
 
         // Get Token payload and date's
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace('-', '+').replace('_', '/');
-        const dataJWT = JSON.parse(window.atob(base64));
+        const dataJWT = JSON.parse(atob(base64));
         dataJWT.header = headerData;
 
         // TODO: add expiration at check ...
@@ -47,19 +47,12 @@ const parseJwt = (token) => {
     }
 }
 
+// Broken, needs to be fixed as per jwt.sign();
 const signJWT = (header, claims, privateKey) => {
     const base64Header = btoa(JSON.stringify(header));
     const base64Claims = btoa(JSON.stringify(claims));
     const signature = hash((base64Header + "." + base64Claims), privateKey);
     return base64Header + "." + base64Claims + "." + signature;
-}
-
-const isTokenExpired = () => {
-
-}
-
-const hasAccessToClaim = (ChannelName) => {
-
 }
 
 function hash(text, privateKey) {
@@ -73,6 +66,14 @@ const btoa = (text) => {
 const atob = (base64) => {
     return Buffer.from(base64, 'base64').toString('binary');
 };
+
+const isTokenExpired = () => {
+
+}
+
+const hasAccessToClaim = (ChannelName) => {
+
+}
 
 module.exports = { isNullOrUndefined, beforeChannelAttach, isNullOrUndefinedOrEmpty,
      isTokenExpired, hasAccessToClaim, signJWT, hash }

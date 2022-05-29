@@ -34,10 +34,17 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
   if (realtimeChannel.name.startsWith("public:")) {
     errorCallback(null)
   }
-  // Write custom logic here
-  console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`)
-  errorCallback(null)
-  //
+
+  console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`);
+  // explicitly request token for given channel name
+  const token = await getSignedToken(realtimeChannel.name, realtimeChannel.auth.token);
+  ablyClient.auth.authorize({token}, (err, tokenDetails) => {
+    if (err) {
+      errorCallback(err);
+    } else {
+      errorCallback(null)
+    }
+  });
 });
 
 const ablyChannel = ablyClient.channels.get("channel1");

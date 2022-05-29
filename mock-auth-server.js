@@ -1,5 +1,6 @@
-const { isNullOrUndefinedOrEmpty, signJWT } = require("./auth-utils");
+const { isNullOrUndefinedOrEmpty } = require("./auth-utils");
 const Ably = require("ably/promises");
+const jwt = require("jsonwebtoken");
 
 const API_KEY = '';
 const APP_ID = API_KEY.split('.')[0],
@@ -41,7 +42,8 @@ const getSignedToken = async (channelName = null, token = null) => {
         "x-ably-clientId": clientId,
         "x-ably-capability": `{${capabilities}}`
     }
-    return signJWT(header, claims, KEY_SECRET);
+    // signJWT(header, claims, KEY_SECRET); broken
+    return jwt.sign(claims, KEY_SECRET, {header});
 }
 
 module.exports = { getSignedToken }
