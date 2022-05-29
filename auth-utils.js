@@ -67,6 +67,17 @@ const atob = (base64) => {
     return Buffer.from(base64, 'base64').toString('binary');
 };
 
+const toTokenDetails = (jwtTokenString) => {
+    const parsedJwt = parseJwt(jwtTokenString);
+    return {
+        capability: parsedJwt['x-ably-capability'],
+        clientId: parsedJwt['x-ably-clientId'],
+        expires: parsedJwt.exp * 1000, // Convert Seconds to ms
+        issued: parsedJwt.iat * 1000,
+        token: jwtTokenString
+    }
+}
+
 const isTokenExpired = () => {
 
 }
@@ -76,4 +87,4 @@ const hasAccessToClaim = (ChannelName) => {
 }
 
 module.exports = { isNullOrUndefined, beforeChannelAttach, isNullOrUndefinedOrEmpty,
-     isTokenExpired, hasAccessToClaim, signJWT, hash, parseJwt }
+     isTokenExpired, hasAccessToClaim, signJWT, hash, parseJwt, toTokenDetails }

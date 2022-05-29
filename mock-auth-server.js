@@ -10,7 +10,11 @@ const APP_ID = API_KEY.split('.')[0],
 
 const ablyClient = new Ably.Rest(API_KEY);
 
-const tokenInvalidOrExpired = (_) => false;
+const tokenInvalidOrExpired = (serverTime, token) => {
+    const parsedJwt = parseJwt(token);
+    return parsedJwt.exp * 1000 <= serverTime;
+};
+
 const clientId = 'sacdaddy@gmail.com'
 
 const getSignedToken = async (channelName = null, token = null) => {
@@ -22,16 +26,16 @@ const getSignedToken = async (channelName = null, token = null) => {
     let channelClaims = new Set(['"public:*":["*"]']);
     let iat = 0;
     let exp = 0;
-    if (!isNullOrUndefinedOrEmpty(token) && !tokenInvalidOrExpired(token)) {
-        parsedJwt = parseJwt(token);
+    let serverTime = await ablyClient.time();
+    if (!isNullOrUndefinedOrEmpty(token) && !tokenInvalidOrExpired(serverTime, token)) {
+        const parsedJwt = parseJwt(token);
         iat = parsedJwt.iat;
         exp = parsedJwt.exp;
         channelClaims = new Set(parsedJwt['x-ably-capability'].slice(1, -1).split(','));
     }
     if (iat == 0) {
-        const time = await ablyClient.time();
-        iat = Math.round(time/1000);
-        exp = iat + 3600; /* time of expiration in seconds */
+        iat = Math.round(serverTime/1000);
+        exp = iat + 4; /* time of expiration in seconds */
     }
     if (!isNullOrUndefinedOrEmpty(channelName)) {
         channelClaims.add(`"${channelName}":["*"]`)

@@ -1,20 +1,27 @@
 const Ably = require("ably");
-const { beforeChannelAttach } = require('./auth-utils');
+const { beforeChannelAttach, toTokenDetails } = require('./auth-utils');
 const { getSignedToken } = require("./mock-auth-server");
 
 // Creating a client with token based auth using authCallback
-const ablyClient = new Ably.Realtime({
+
+let catcheToken = null;
+const authOptions = {
   queryTime: true,
   useTokenAuth: true,
-  authCallback: async ({token}, callback) => { // get token from tokenParams
+  authCallback: async (_, callback) => { // get token from tokenParams
     try {
-      token = token || ablyClient.auth.tokenDetails?.token; // if tokenParam is null, get saved token
-      const jwtToken = await getSignedToken(null, token); // Replace this by network request to PHP server
-      callback(null, jwtToken);
+      const jwtToken = await getSignedToken(null, catcheToken); // Replace this by network request to PHP server
+      catcheToken = jwtToken;
+      const tokenDetails = toTokenDetails(jwtToken);
+      callback(null, tokenDetails);
     } catch (error) {
       callback(error, null);
     }
   }
+}
+
+const ablyClient = new Ably.Realtime({
+  ...authOptions
   // log: {
   //   "level": 3, // debug
   //   "handler": (msg)=> {
@@ -25,22 +32,37 @@ const ablyClient = new Ably.Realtime({
 
 // listen to all events on connection
 ablyClient.connection.on((stateChange, error) => {
-  console.log("Connection event :: ", stateChange, " error :: ", error);
+  console.log("LOGGER:: Connection event :: ", stateChange, " error :: ", error);
   if (stateChange.current == 'disconnected' && stateChange.reason?.code == 40142) { // key/token status expired
-    console.log("Connection token expired https://help.ably.io/error/40142");
+    console.log("LOGGER:: Connection token expired https://help.ably.io/error/40142");
+  }
+  if (stateChange.current == 'connected') {
+    console.log(stateChange, ablyClient.auth.tokenDetails);
   }
 });
 
+
+
 beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
-  if (realtimeChannel.name.startsWith("public:")) {
+  const channelName = realtimeChannel.name;
+  if (channelName.startsWith("public:")) {
     errorCallback(null)
   }
 
-  console.log(`Written some custom logic for channel before attach :: ${realtimeChannel.name}`);
+  // Use cached token if has channel capability and is valid
+  const token = ablyClient.auth.tokenDetails;
+  if (token) {
+    const tokenHasChannelCapability = token.capability.includes(channelName);
+    if (tokenHasChannelCapability && ablyClient.auth.isTimeOffsetSet() && token.expires >= ablyClient.auth.getTimestampUsingOffset()) {
+      errorCallback(null)
+    }
+  }
+
+  console.log(`LOGGER :: Written some custom logic for channel before attach :: ${channelName}`);
   // explicitly request token for given channel name
-  const token = ablyClient.auth.tokenParams?.token || ablyClient.auth.tokenDetails?.token; // always send latest token
-  getSignedToken(realtimeChannel.name, token).then(token => { // replace this by network server call
-    ablyClient.auth.authorize({token}, (err, tokenDetails) => {
+  getSignedToken(channelName, catcheToken).then(jwtToken => { // get upgraded token with channel access
+    catcheToken = jwtToken;
+    ablyClient.auth.authorize(null, {...authOptions, token: toTokenDetails(jwtToken)}, (err, tokenDetails) => {
       if (err) {
         errorCallback(err);
       } else {
@@ -52,11 +74,11 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
 
 const ablyChannel = ablyClient.channels.get("channel1");
 ablyChannel.subscribe(function (message) {
-  console.log('channel1 message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
+  console.log('LOGGER :: channel1 message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
 });
 
 ablyChannel.on((eventName, error) => {
-  console.log("channel1 event :: ", eventName, " error :: ", error);
+  console.log("LOGGER :: event :: ", eventName, " error :: ", error);
   const stateChange = eventName;
   if (stateChange.current == 'failed' && stateChange.reason?.code == 40160) {
     console.error("Channel denied access based on given capability https://help.ably.io/error/40160");
