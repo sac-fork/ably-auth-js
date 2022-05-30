@@ -24,7 +24,8 @@ const getSignedToken = async (channelName = null, token = null) => {
         "alg":"HS256",
         "kid": KEY_NAME
     }
-    let channelClaims = new Set(['"public:*":["*"]']);
+    // Set capabilities for public channel as per https://ably.com/docs/core-features/authentication#capability-operations
+    let channelClaims = new Set(['"public:*":["subscribe", "history", "channel-metadata"]']);
     let iat = 0;
     let exp = 0;
     let serverTime = await ablyClient.time();
@@ -35,7 +36,7 @@ const getSignedToken = async (channelName = null, token = null) => {
         channelClaims = new Set(parsedJwt['x-ably-capability'].slice(1, -1).split(','));
     } else {
         iat = Math.round(serverTime/1000);
-        exp = iat + 10; /* time of expiration in seconds */
+        exp = iat + 20; /* time of expiration in seconds */
     }
     if (!isNullOrUndefinedOrEmpty(channelName)) {
         channelClaims.add(`"${channelName}":["*"]`)
