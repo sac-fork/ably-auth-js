@@ -36,7 +36,7 @@ const getSignedToken = async (channelName = null, token = null) => {
         channelClaims = new Set(parsedJwt['x-ably-capability'].slice(1, -1).split(','));
     } else {
         iat = Math.round(serverTime/1000);
-        exp = iat + 20; /* time of expiration in seconds */
+        exp = iat + 60; /* time of expiration in seconds */
     }
     if (!isNullOrUndefinedOrEmpty(channelName)) {
         channelClaims.add(`"${channelName}":["*"]`)

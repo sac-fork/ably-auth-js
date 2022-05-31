@@ -1,17 +1,17 @@
 const Ably = require("ably");
 const { beforeChannelAttach, toTokenDetails } = require('./auth-utils');
-const { getSignedToken } = require("./mock-auth-server");
+const {SequentialAuthTokenRequestExecuter} = require('./token-request');
 
 // Creating a client with token based auth using authCallback
 
 let catcheToken = null;
+const authRequestExecuter = new SequentialAuthTokenRequestExecuter();
 const authOptions = {
   queryTime: true,
   useTokenAuth: true,
   authCallback: async (_, callback) => { // get token from tokenParams
     try {
-      const jwtToken = await getSignedToken(null, catcheToken); // Replace this by network request to PHP server
-      catcheToken = jwtToken;
+      const jwtToken = await authRequestExecuter.request(null); // Replace this by network request to PHP server
       const tokenDetails = toTokenDetails(jwtToken);
       callback(null, tokenDetails);
     } catch (error) {
@@ -31,19 +31,20 @@ const ablyClient = new Ably.Realtime({
 });
 
 // listen to all events on connection
-ablyClient.connection.on((stateChange, error) => {
-  console.log("LOGGER:: Connection event :: ", stateChange, " error :: ", error);
+ablyClient.connection.on((stateChange) => {
+  console.log("LOGGER:: Connection event :: ", stateChange);
   if (stateChange.current == 'disconnected' && stateChange.reason?.code == 40142) { // key/token status expired
     console.log("LOGGER:: Connection token expired https://help.ably.io/error/40142");
   }
 });
 
 
-
 beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
   const channelName = realtimeChannel.name;
   if (channelName.startsWith("public:")) {
-    errorCallback(null)
+    console.log('LOGGER :: PUBLIC CHANNEL SKIPPING TOKEN CHANNEL AUTH', channelName);
+    errorCallback(null);
+    return;
   }
 
   // Use cached token if has channel capability and is not expired
@@ -51,55 +52,82 @@ beforeChannelAttach(ablyClient, (realtimeChannel, errorCallback) => {
   if (token) {
     const tokenHasChannelCapability = token.capability.includes(channelName);
     if (tokenHasChannelCapability && token.expires >= Date.now()) { // TODO : Replace with server time
-      console.log('LOGGER :: SKIPPING TOKEN CHANNEL AUTH')
-      errorCallback(null)
+      console.log('LOGGER :: USING CACHED TOKEN FOR CHANNEL :: ', channelName)
+      errorCallback(null);
+      return;
     }
   }
 
-  console.log(`LOGGER :: Written some custom logic for channel before attach :: ${channelName}`);
+  console.log(`LOGGER :: REQUESTING SIGNED TOKEN FOR :: ${channelName}`);
   // explicitly request token for given channel name
-  getSignedToken(channelName, catcheToken).then(jwtToken => { // get upgraded token with channel access
+  authRequestExecuter.request(channelName).then(jwtToken => { // get upgraded token with channel access
     catcheToken = jwtToken;
-    ablyClient.auth.authorize(null, {...authOptions, token: toTokenDetails(jwtToken)}, (err, tokenDetails) => {
+    ablyClient.auth.authorize(null, { ...authOptions, token: toTokenDetails(jwtToken) }, (err, tokenDetails) => {
       if (err) {
         errorCallback(err);
       } else {
-        errorCallback(null)
+        errorCallback(null);
       }
     });
   })
 });
 
-
-const ablyChannel = ablyClient.channels.get("channel1");
-ablyChannel.subscribe(function (message) {
-  console.log('LOGGER :: channel1 message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
-});
-
-ablyChannel.on((eventName, error) => {
-  console.log("LOGGER :: event :: ", eventName, " error :: ", error);
-  const stateChange = eventName;
-  if (stateChange.current == 'failed' && stateChange.reason?.code == 40160) {
-    console.error("LOGGER :: Channel denied access based on given capability https://help.ably.io/error/40160");
-    console.log("LOGGER :: Forced requesting new token for channel");
-    const channelName = ablyChannel.name;
-    getSignedToken(channelName, catcheToken).then(jwtToken => { // get upgraded token with channel access
-      catcheToken = jwtToken;
-      ablyClient.auth.authorize(null, {...authOptions, token: toTokenDetails(jwtToken)}, (err, tokenDetails) => {
-        if (err) {
-          console.error("LOGGER :: Error authorizing channel token", err);
-        } else {
-          console.log('LOGGER :: attaching channel after getting token');
-          ablyChannel.attach(err=> {
-            if (err) {
-            console.error("Error with attaching the channel", err);
-            }
-          })
-        }
-      });
-    });
+const onChannelFailed = (ablyChannel) => stateChange => {
+  console.log("Called on channel failed");
+  if (stateChange.reason?.code == 40160) { // channel capability rejected https://help.ably.io/error/40160
+    handleChannelAuthError(ablyChannel);
   }
+}
+
+const onStateChange = (ablyChannel) => stateChange => {
+   console.log("LOGGER :: CHANNEL STATE CHANGE :: ", stateChange, " CHANNEL NAME :: ", ablyChannel.name);
+}
+
+const publicChannel = ablyClient.channels.get("public:channel");
+publicChannel.on("failed", onChannelFailed(publicChannel));
+publicChannel.on(onStateChange(publicChannel));
+publicChannel.subscribe(function (message) {
+  console.log('LOGGER :: publicChannel message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
 });
+
+const privateChannel = ablyClient.channels.get("private:channel");
+privateChannel.on("failed", onChannelFailed(privateChannel));
+privateChannel.on(onStateChange(privateChannel));
+privateChannel.subscribe(function (message) {
+  console.log('LOGGER :: privateChannel:channel message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
+});
+
+
+const privateChannel2 = ablyClient.channels.get("private:channel2");
+privateChannel2.on("failed", onChannelFailed(privateChannel2));
+privateChannel2.on(onStateChange(privateChannel2));
+privateChannel2.subscribe(function (message) {
+  console.log('LOGGER :: privateChannel2:channel message :: ' + message.name + ', data :: ' + JSON.stringify(message.data));
+});
+
+const handleChannelAuthError = (realtimeChannel) => {
+  console.error("LOGGER :: Channel denied access based on given capability https://help.ably.io/error/40160");
+  console.log("LOGGER :: Forced requesting new token for channel");
+  const channelName = realtimeChannel.name;
+  authRequestExecuter.request(channelName).then(jwtToken => { // get upgraded token with channel access
+    catcheToken = jwtToken;
+    ablyClient.auth.authorize(null, { ...authOptions, token: toTokenDetails(jwtToken) }, (err, tokenDetails) => {
+      if (err) {
+        console.error("LOGGER :: Error authorizing channel token", err);
+      } else {
+        console.log('LOGGER :: attaching channel after getting token');
+        realtimeChannel.attach(err => {
+          if (err) {
+            console.error("Error with attaching the channel", err);
+          } else {
+            console.log("LOGGER :: Attached channel without any issues");
+          }
+        })
+      }
+    });
+  });
+}
+
 
 // setTimeout(() => {
 //   console.log("Explicitly authorizing with capability");
