@@ -30,7 +30,7 @@ function TaskQueue(tasks = [], concurrentCount = 1) {
     this.count = concurrentCount;
 }
 
-TaskQueue.prototype.runNext = function () {
+TaskQueue.prototype.canRunNext = function () {
     return ((this.running.length < this.count) && this.todo.length);
 }
 
@@ -38,7 +38,7 @@ TaskQueue.prototype.run = async function (task, executer) {
     if (task) {
         this.todo.push({ task, executer });
     }
-    while (this.runNext()) {
+    while (this.canRunNext()) {
         const { task, executer } = this.todo.shift();
         this.running.push(task);
         await executer(task);
