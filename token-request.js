@@ -9,9 +9,9 @@ class SequentialAuthTokenRequestExecuter {
     }
 
     execute = (tokenRequestFn) => new Promise(async (resolve, reject) => {
-        await this.queue.run(tokenRequestFn, async (reqFn) => {
+        await this.queue.run(async () => {
             try {
-                const token = await reqFn(this.cachedToken);
+                const token = await tokenRequestFn(this.cachedToken);
                 this.cachedToken = token;
                 resolve(token);
             } catch (err) {
@@ -34,14 +34,14 @@ TaskQueue.prototype.canRunNext = function () {
     return ((this.running.length < this.count) && this.todo.length);
 }
 
-TaskQueue.prototype.run = async function (task, executer) {
+TaskQueue.prototype.run = async function (task) {
     if (task) {
-        this.todo.push({ task, executer });
+        this.todo.push(task);
     }
     while (this.canRunNext()) {
-        const { task, executer } = this.todo.shift();
-        this.running.push(task);
-        await executer(task);
+        const currentTask = this.todo.shift();
+        this.running.push(currentTask);
+        await currentTask();
         this.running.shift();
     }
 }
