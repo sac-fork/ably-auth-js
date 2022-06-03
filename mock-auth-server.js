@@ -20,12 +20,12 @@ const clientId = 'sacdaddy@gmail.com'
 
 const getSignedToken = async (channelName = null, token = null) => {
     const header = {
-        "typ":"JWT",
-        "alg":"HS256",
+        "typ": "JWT",
+        "alg": "HS256",
         "kid": KEY_NAME
     }
     // Set capabilities for public channel as per https://ably.com/docs/core-features/authentication#capability-operations
-    let channelClaims = new Set(['"public:*":["subscribe", "history", "channel-metadata"]']);
+    let capabilities = {"public:*":["subscribe", "history", "channel-metadata"]};
     let iat = 0;
     let exp = 0;
     let serverTime = await ablyClient.time();
@@ -33,23 +33,21 @@ const getSignedToken = async (channelName = null, token = null) => {
         const parsedJwt = parseJwt(token);
         iat = parsedJwt.iat;
         exp = parsedJwt.exp;
-        channelClaims = new Set(parsedJwt['x-ably-capability'].slice(1, -1).split(','));
+        capabilities = parsedJwt['x-ably-capability'];
     } else {
-        iat = Math.round(serverTime/1000);
+        iat = Math.round(serverTime / 1000);
         exp = iat + 60; /* time of expiration in seconds */
     }
     if (!isNullOrUndefinedOrEmpty(channelName)) {
-        channelClaims.add(`"${channelName}":["*"]`)
+        capabilities[channelName] = ["*"]
     }
-    const capabilities = Array.from(channelClaims).join(',');
     const claims = {
         iat,
         exp,
         "x-ably-clientId": clientId,
-        "x-ably-capability": `{${capabilities}}`
+        "x-ably-capability": capabilities
     }
-    // signJWT(header, claims, KEY_SECRET); broken
-    return jwt.sign(claims, KEY_SECRET, {header});
+    return jwt.sign(claims, KEY_SECRET, { header });
 }
 
 module.exports = { getSignedToken }
